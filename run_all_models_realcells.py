@@ -21,13 +21,15 @@ from sklearn.neighbors import KernelDensity
 from tqdm import tqdm
 
 # LOAD DATA
-data_path = "python_spkphase_multirhythm/"
+# data_path = "python_spkphase_multirhythm/"
+data_path = "python_spkphase_pyrcells_multirhythm_byodorpos"
 
 data_folders=[]
 data_folders = [f for f in os.listdir(data_path) if not f.startswith('.')]
 data_folders = sorted(data_folders)
 
-rhythm = 'theta'
+rhythm = 'lowgamma'
+frequency_edges = [35,55]
 longhistlen = 250
 
 # SET BANDWITH RANGE FOR KERNEL DENSITY ESTIMATION ## Select the bandwidth range
@@ -43,29 +45,37 @@ fs = 1000 #sampling rate, in Hz
 
 # DEFINE variable names to grab from .mat file
 spikes_var_name = 'spikes_long'
-phase_var_name = rhythm +'phase_long'
+# phase_var_name = rhythm + '_phase_long' #for the ints
+phase_var_name = rhythm + 'phase_' + str(frequency_edges[0]) + 'to' + str(frequency_edges[1]) + 'Hz_long'
 lfp_var_name = 'lfp_long'
 
 #cross validation test set size
 test_size = 0.5
 
 # decide how many folds of the data you will run
-N_FOLDS = [16,17,18, 19, 20]
+N_FOLDS = np.arange(1)
+#TODO: in the future, would be nice to generate the train test splits here, to ensure that you run all possible
+#combinations for the pyramidal cells especially
 
 #decide whether you'll do complete models with logodds of both history and phase probs,
 #rather than raw history data
-rng = np.random.default_rng()
+
+rng = np.random.default_rng() #this is just a random number to make sure you don't overwrite previously saved results
 
 logodds_completemdls = 1
 
+#the file structures vary depending on whether you're grabbing interneurons or pyramidal cells
+# cell_type = 'int'
+cell_type = 'pyr'
+
 if logodds_completemdls == 1:
-    subfolder_name = 'logoddsCompleteSinglePredMdls'+ str(rng.integers(low=0,high=1300)) + '/'
+    subfolder_name = cell_type + 'logoddsCompleteSinglePredMdls'+ str(rng.integers(low=0,high=1300)) + '/'
 else:
-    subfolder_name = 'logoddsCompleteMdls' + str(rng.integers(low=0,high=1300)) + '/'
+    subfolder_name = cell_type + 'logoddsCompleteMdls' + str(rng.integers(low=0,high=1300)) + '/'
 
 
 for fold in N_FOLDS:
-    MAIN_SAVEPATH = 'FINAL/Entropy2020PhaseHistModels_AllCells/' + subfolder_name + rhythm + str(longhistlen) + 'ms' + '/folds/' + str(fold)
+    MAIN_SAVEPATH = 'RESULTS/PhaseHistModels_AllCells_pyr_byOdorPos/' + subfolder_name + rhythm + str(longhistlen) + 'ms' + '/folds/' + str(fold)
     NEURON_SAVEPATH =  MAIN_SAVEPATH + '/single_neuron/'
 
 
@@ -79,80 +89,95 @@ for fold in N_FOLDS:
     pop_losses_train = []
     pop_losses_test = []
 
-    for n in tqdm(range(len(data_folders))):#   range(len(data_folders)) np.arange(0,1))
+    for n in tqdm(range(len(data_folders))):
 
+        if cell_type == 'int':
+            nrn_path = os.path.join(data_path,data_folders[n])
 
-        nrn_path = os.path.join(data_path,data_folders[n])
+            for file in os.listdir(nrn_path):
+                if not file.startswith('.') & file.endswith('.mat'):
+                    file_name = file.split('.mat')[0]
+                    file_path = os.path.join(nrn_path, file_name)
 
-        for file in os.listdir(nrn_path):
-            if not file.startswith('.') & file.endswith('.mat'):
-                file_name = file.split('.mat')[0]
-                file_path = os.path.join(nrn_path, file_name)
+            session_name = file_path + '_results'
 
-        session_name = file_path + '_results'
+        if cell_type == 'pyr':
+            #for pyr cells, data_folders are actually files
+            file_path = os.path.join(data_path,data_folders[n])
+            file_name = data_folders[n].split('mat')[0]
+
+            session_name = file_name + '_results'
+
 
         data = sio.loadmat(file_path,squeeze_me=1)
 
-        session = Automaze_Spkphase(data,
-                          session_id=session_name,
-                          pre_trial_time=.250,
-                          fs=fs,
-                          long=longhistlen/1000,
-                          short=0.003)
-
-        hist_longest = session.extra_msec()
-
-        All_Spikes, All_Phases, All_LFP = session.get_fulldata(spikes_var_name,phase_var_name,lfp_var_name)
-
-        trial_data, iter_timesamps, trial_ends, n_trials = session.process_mat_struct()
-
-        n_trials = trial_data.get('n_trials')
-
-        histlong, histshort = session.history_in_msec()
-
-        df, Trial_Spikes, Trial_Phases, Trial_LFP= session.make_history()
-
-        df = session.label_trials()
-
-        hist_long_col = list(reversed(range(hist_longest-histlong,hist_longest)))
-        hist_short_col = list(reversed(range(hist_longest-histshort,
-                                             hist_longest)))
-
-        df, train, test, probs_df_test, probs_df_train, coeff_clong, coeff_hlong, coeff_hshort, coeff_cshort, coeff_TRANS_hshort, coeff_TRANS_hlong, kde_params, kde_bandwidth = kdePhase_logregHistory_models(df,data_folders[n],
-                                                                                                                                                                                                                test_size,
-                                                                                                                                                                                                                kde_cvsplits,
-                                                                                                                                                                                                                kde_gridsize,
-                                                                                                                                                                                                                NARROW,
-                                                                                                                                                                                                                WIDE,
-                                                                                                                                                                                                                N_BW,
-                                                                                                                                                                                                                hist_long_col,
-                                                                                                                                                                                                                hist_short_col,
-                                                                                                                                                                                                                logodds_completemdls)
-
-        #===============================================================================
-        #===========create the save folder if it doesn't yet exist======================
-        #===============================================================================
-
-        if not os.path.exists(NEURON_SAVEPATH):
-            os.makedirs(NEURON_SAVEPATH)
-
-        nrn_savepath = os.path.join(NEURON_SAVEPATH,data_folders[n])
-        if not os.path.exists(nrn_savepath):
-            os.makedirs(nrn_savepath)
+        if data['spikes_long'].sum() >= 100:
 
 
-        df.to_csv(os.path.join(nrn_savepath,r'raw_data.csv'))
-        train.to_csv(os.path.join(nrn_savepath,r'train_data.csv'))
-        test.to_csv(os.path.join(nrn_savepath,r'test_data.csv'))
-        probs_df_test.to_csv(os.path.join(nrn_savepath,r'probs_models_test.csv'))
-        probs_df_train.to_csv(os.path.join(nrn_savepath,r'probs_models_train.csv'))
-        coeff_clong.to_csv(os.path.join(nrn_savepath,r'coeff_clong.csv'))
-        coeff_cshort.to_csv(os.path.join(nrn_savepath,r'coeff_cshort.csv'))
-        coeff_hlong.to_csv(os.path.join(nrn_savepath,r'coeff_hlong.csv'))
-        coeff_hshort.to_csv(os.path.join(nrn_savepath,r'coeff_hshort.csv'))
+            session = Automaze_Spkphase(data,
+                              session_id=session_name,
+                              pre_trial_time=.250,
+                              fs=fs,
+                              long=longhistlen/1000,
+                              short=0.003)
 
-        if coeff_TRANS_hshort.empty & coeff_TRANS_hlong.empty:
-            coeff_TRANS_hshort = []
-        else:
-            coeff_TRANS_hshort.to_csv(os.path.join(nrn_savepath,r'coeff_Transhshort.csv'))
-            coeff_TRANS_hlong.to_csv(os.path.join(nrn_savepath,r'coeff_Transhlong.csv'))
+            hist_longest = session.extra_msec()
+
+            All_Spikes, All_Phases, All_LFP = session.get_fulldata(spikes_var_name,phase_var_name,lfp_var_name)
+
+            trial_data, iter_timesamps, trial_ends, n_trials = session.process_mat_struct()
+
+            n_trials = trial_data.get('n_trials')
+
+            histlong, histshort = session.history_in_msec()
+
+            df, Trial_Spikes, Trial_Phases, Trial_LFP= session.make_history()
+
+            df = session.label_trials()
+
+            hist_long_col = list(reversed(range(hist_longest-histlong,hist_longest)))
+            hist_short_col = list(reversed(range(hist_longest-histshort,
+                                                 hist_longest)))
+
+            #keep only trials in df that contain at least one spike
+            df = session.keep_trials_with_spikes()
+
+
+            df, train, test, probs_df_test, probs_df_train, coeff_clong, coeff_hlong, coeff_hshort, coeff_cshort, coeff_TRANS_hshort, coeff_TRANS_hlong, kde_params, kde_bandwidth = kdePhase_logregHistory_models(df,data_folders[n],
+                                                                                                                                                                                                                    test_size,
+                                                                                                                                                                                                                    kde_cvsplits,
+                                                                                                                                                                                                                    kde_gridsize,
+                                                                                                                                                                                                                    NARROW,
+                                                                                                                                                                                                                    WIDE,
+                                                                                                                                                                                                                    N_BW,
+                                                                                                                                                                                                                    hist_long_col,
+                                                                                                                                                                                                                    hist_short_col,
+                                                                                                                                                                                                                    logodds_completemdls)
+
+            #===============================================================================
+            #===========create the save folder if it doesn't yet exist======================
+            #===============================================================================
+
+            if not os.path.exists(NEURON_SAVEPATH):
+                os.makedirs(NEURON_SAVEPATH)
+
+            nrn_savepath = os.path.join(NEURON_SAVEPATH,data_folders[n])
+            if not os.path.exists(nrn_savepath):
+                os.makedirs(nrn_savepath)
+
+
+            df.to_csv(os.path.join(nrn_savepath,r'raw_data.csv'))
+            train.to_csv(os.path.join(nrn_savepath,r'train_data.csv'))
+            test.to_csv(os.path.join(nrn_savepath,r'test_data.csv'))
+            probs_df_test.to_csv(os.path.join(nrn_savepath,r'probs_models_test.csv'))
+            probs_df_train.to_csv(os.path.join(nrn_savepath,r'probs_models_train.csv'))
+            coeff_clong.to_csv(os.path.join(nrn_savepath,r'coeff_clong.csv'))
+            coeff_cshort.to_csv(os.path.join(nrn_savepath,r'coeff_cshort.csv'))
+            coeff_hlong.to_csv(os.path.join(nrn_savepath,r'coeff_hlong.csv'))
+            coeff_hshort.to_csv(os.path.join(nrn_savepath,r'coeff_hshort.csv'))
+
+            if coeff_TRANS_hshort.empty & coeff_TRANS_hlong.empty:
+                coeff_TRANS_hshort = []
+            else:
+                coeff_TRANS_hshort.to_csv(os.path.join(nrn_savepath,r'coeff_Transhshort.csv'))
+                coeff_TRANS_hlong.to_csv(os.path.join(nrn_savepath,r'coeff_Transhlong.csv'))
