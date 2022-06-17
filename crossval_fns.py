@@ -1,8 +1,9 @@
-
+import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import random
+import time
 
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import LogisticRegression
@@ -12,19 +13,69 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures
 from tqdm import tqdm
 
-def train_test_split_bytrials(df,test_size,n_trials):
+
+def train_test_split_prespecified(df, col_name, current_train_labels):
+    """"Filter the dataframe by prespecified column labels"""
+
+    train = df[df[col_name].isin(current_train_labels)]
+    test = df[~df[col_name].isin(current_train_labels)]
+
+    return train, test
+
+def train_trial_combinations_shuffle(trial_labels,k,desired_folds):
+    """faster alternative to train_trial_combinations for neurons with many trials;
+    doesn't provide exhaustive set of train trials to choose from, but ensures
+    randomness nevertheless"""
+
+    all_train_labels = []
+    for fold in range(desired_folds):
+
+        random.shuffle(trial_labels)
+
+        all_train_labels.append(trial_labels[:k])
+
+
+    return all_train_labels
+
+def train_trial_combinations(trial_labels,k):
+    """This code basically outputs n choose k combinations, where k is the number
+    of trials that should make it into a given training set"""
+
+    all_train_labels = []
+
+    for train_comb in it.combinations(trial_labels,k):
+
+            all_train_labels.append(train_comb)
+
+    return all_train_labels
+
+def train_test_split_bytrials(df,test_size,n_splits):
     """Partitions the dataset into train and test splits by trial label, that is,
     keeping all consecutive trial timestamps together"""
+
+    all_labels = list(set(df['trial_labels'].to_list()))
+
+    n_trials = len(all_labels)
 
     n_trials_test = round(n_trials*test_size)
     n_trials_train = n_trials - n_trials_test
 
-    all_labels = np.arange(n_trials)
 
     #sample without replacement
     train_labels = random.sample(list(all_labels), n_trials_train)
 
     train = df[df['trial_labels'].isin(train_labels)]
+
+    #don't proceed until the training set has enough observations for kde
+    timeout = time.time() + 60*1   # 1 minute from now
+    while train['spikes'].sum() < n_splits:
+        train_labels = random.sample(list(all_labels), n_trials_train)
+
+        train = df[df['trial_labels'].isin(train_labels)]
+        if train['spikes'].sum() == n_splits or time.time() > timeout:
+            break
+
+
     test = df[~df['trial_labels'].isin(train_labels)]
 
     return train, test
