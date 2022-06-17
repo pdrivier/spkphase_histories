@@ -103,7 +103,7 @@ pop_losses_test = []
 
 
 
-for n in tqdm(range(len(data_folders[58:]))):
+for n,name in tqdm(enumerate(data_folders[47:48])): #tqdm(range(len(data_folders[58:]))):
 
     #reset this var for each neuron
     all_train_labels = []
@@ -111,7 +111,7 @@ for n in tqdm(range(len(data_folders[58:]))):
     if cell_type == 'int':
 
         #uncomment below for old directory structure
-        # nrn_path = os.path.join(data_path,data_folders[n])
+        # nrn_path = os.path.join(data_path,name)
         #
         # for file in os.listdir(nrn_path):
         #     if not file.startswith('.') & file.endswith('.mat'):
@@ -121,16 +121,16 @@ for n in tqdm(range(len(data_folders[58:]))):
         # session_name = file_path + '_results'
 
         #the directory structure for high v is more similar to pyr cells structure
-        file_path = os.path.join(data_path,data_folders[n])
-        file_name = data_folders[n].split('.mat')[0]
+        file_path = os.path.join(data_path,name)
+        file_name = name.split('.mat')[0]
 
         session_name = file_name + '_results'
 
 
     if cell_type == 'pyr':
         #for pyr cells, data_folders are actually files
-        file_path = os.path.join(data_path,data_folders[n])
-        file_name = data_folders[n].split('mat')[0]
+        file_path = os.path.join(data_path,name)
+        file_name = name.split('mat')[0]
 
         session_name = file_name + '_results'
 
@@ -206,7 +206,7 @@ for n in tqdm(range(len(data_folders[58:]))):
                 else:
                     kde_cvsplits = 5
 
-                df, train, test, probs_df_test, probs_df_train, coeff_clong, coeff_hlong, coeff_hshort, coeff_cshort, coeff_TRANS_hshort, coeff_TRANS_hlong, kde_params, kde_bandwidth = kdePhase_logregHistory_models(df,data_folders[n],
+                df, train, test, probs_df_test, probs_df_train, coeff_clong, coeff_hlong, coeff_hshort, coeff_cshort, coeff_TRANS_hshort, coeff_TRANS_hlong, kde_params, kde_bandwidth = kdePhase_logregHistory_models(df,name,
                                                                                                                                                                                                                         current_train_labels,
                                                                                                                                                                                                                         kde_cvsplits,
                                                                                                                                                                                                                         kde_gridsize,
@@ -224,7 +224,7 @@ for n in tqdm(range(len(data_folders[58:]))):
                 if not os.path.exists(NEURON_SAVEPATH):
                     os.makedirs(NEURON_SAVEPATH)
 
-                nrn_savepath = os.path.join(NEURON_SAVEPATH,data_folders[n])
+                nrn_savepath = os.path.join(NEURON_SAVEPATH,name)
                 if not os.path.exists(nrn_savepath):
                     os.makedirs(nrn_savepath)
 
