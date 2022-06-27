@@ -6,4 +6,4 @@ Phase models rely on fitting kernel density estimators to the distribution of rh
 
 History models are fit via logistic regression. 
 
-The scripts to run the models all begin with the "run_models_" prefix, and they vary according to the format the data are in (.mat files versus .csv files) as well as whether cross-validation proceeds via a leave-one-out train-test protocol, or not. For instance, "run_all_models_simcells.py" will expect data to be already organized as a dataframe, while "run_all_models_realcells.py" will expect data to come in as a .mat file. 
+The scripts to run the models all begin with the "run_models_" prefix, and they vary according to the format the data are in (.mat files versus .csv files) as well as whether there is an option for leave-one-out cross-validation to find the optimal KDE kernel bandwidth. For instance, "run_all_models_simcells.py" will expect data to be already organized as a dataframe, while "run_all_models_realcells.py" will expect data to come in as a .mat file. 
